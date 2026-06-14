@@ -1,32 +1,30 @@
 # 🏦 Bank of Korea Policy Credibility Analyzer
 > **한국은행 기준금리 방향성 예측 및 통화정책 신뢰도 분석 파이프라인**
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
-![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-F9AB00?logo=huggingface&logoColor=white)
-![Chronos](https://img.shields.io/badge/Amazon-Chronos_Bolt-FF9900)
+## 📌 데이터 소개
+본 프로젝트는 한국은행 금융통화위원회(금통위)의 통화정책 결정 메커니즘을 분석하기 위해 자연어 데이터와 수치형 시계열 데이터를 결합한 다중 모달(Multimodal) 데이터셋을 사용합니다.
+* **텍스트 데이터 (`PolicyDirection/`):** 2016년부터 2025년까지의 한국은행 금통위 의사록 원본 PDF 문서들로, 정성적인 정책 스탠스와 언어적 뉘앙스를 추출하는 데 사용됩니다.
+* **정답 레이블 데이터 (`bok_labels.csv`):** 2016년 이후의 연월별 실제 기준금리 수치와 금리 결정 이력(인하/동결/인상)이 매칭된 데이터셋입니다.
+* **거시경제 지표 데이터:** 모델의 예측 및 신뢰도 검증을 위한 금융 지표(KOSPI/KOSDAQ 지수, 원/달러 환율 등)를 포함합니다.
 
-## 📌 Project Overview
-본 프로젝트는 **자연어 처리(NLP)**와 **최신 시계열 예측(Time-Series Forecasting)** 모델을 결합한 이중 파이프라인을 통해 한국은행 금융통화위원회의 기준금리 결정 방향성(인상, 동결, 인하)을 예측합니다. 
+## ⚙️ 데이터 전처리
+* **텍스트 추출 및 정제:** `pdfplumber` 라이브러리를 활용하여 `PolicyDirection/` 폴더 내의 PDF 문서에서 순수 텍스트를 연월(YYYY-MM) 기준으로 스캔 및 정제합니다.
+* **토큰화 (Tokenization):** HuggingFace의 `BertTokenizer`를 통해 추출된 의사록 문맥을 분할하고, 최적의 연산을 위해 패딩(Padding) 및 절단(Truncation)을 수행합니다.
+* **데이터 불균형 해소:** 기준금리 변동의 특성상 '동결'에 비해 '인상/인하' 등 전환점 데이터가 부족한 문제를 해결하기 위해, 실제 금리 전환점이 발생한 당월 데이터를 5배 오버샘플링(Oversampling)하여 모델의 과민반응을 방지하고 연속성을 보정합니다.
 
-단순한 금리 예측을 넘어, 시장의 예측 모델과 실제 정책 결정 간의 괴리를 분석하고 이를 정량화하여 **'통화정책의 신뢰도(Policy Credibility)'를 종합 지수화 및 시각화**하는 것을 핵심 목표로 합니다.
+## 🤖 모델 학습 과정
+프로젝트는 독립된 이중 파이프라인(Dual-Pipeline) 구조로 순차적으로 학습 및 예측을 진행합니다.
+1. **NLP 파이프라인 (`bert.py`):** 미세 조정(Fine-tuning)된 `BertForSequenceClassification` 모델을 사용하여 의사록 텍스트로부터 당월 금리 변동 압력에 대한 3가지 확률(인상/동결/인하)을 산출하고, 이를 바탕으로 선행 지표인 `bert_signal`을 생성합니다. (`monthly_results.json`으로 저장)
+2. **시계열 파이프라인 (`chronos-bolt.py`):** 프리트레인된 시계열 파운데이션 모델인 `amazon/chronos-bolt-base`를 활용합니다. 과거 24개월(`CONTEXT_LENGTH`) 데이터를 참조하여 롤링 예측(Rolling Prediction)을 수행하며, 앞서 추출된 BERT 신호 및 실제 기준금리 데이터와 병합합니다.
+3. **신뢰도 지수화:** 시계열 모델의 예측값과 실제 정책 결정 간의 괴리율인 '정책 서프라이즈(Policy Surprise)'를 정량적으로 계산하여 최종적인 통화정책 신뢰도 지수(Composite Index) 및 신뢰도 등급(Credibility Grade)을 도출합니다.
 
-## 🚀 Key Features
-- **🧠 Text-driven Directional Analysis (NLP)**
-  - `BERT` 기반 분류 모델을 활용하여 금통위 의사록 등 원본 텍스트에서 금리 조정 압력(인상/동결/인하 확률)을 정밀하게 추출합니다.
-  - 불균형 데이터 해소를 위한 연속성 보정 및 전환점 당월 오버샘플링 알고리즘이 적용되었습니다.
-- **📈 Advanced Time-Series Forecasting**
-  - `Amazon/chronos-bolt-base` 파운데이션 모델을 활용한 롤링 예측(Rolling Prediction)을 수행합니다.
-- **📊 Policy Credibility Indexing**
-  - 모델의 예측값과 실제 금리 결정 간의 '정책 서프라이즈(Policy Surprise)'를 계산하여 최종적인 신뢰도 등급(Credibility Grade)을 도출합니다.
-- **📉 Interactive Visualization**
-  - 시계열 트렌드와 기준금리 변동 내역, 정책 신뢰도 하락 구간을 직관적으로 파악할 수 있는 종합 대시보드를 제공합니다.
+## 📊 결과 이미지
+학습 및 예측이 완료되면 전반적인 모델 성능과 분석 트렌드를 한눈에 확인할 수 있는 종합 대시보드 시각화 파일이 자동 생성됩니다.
 
-## 📂 Repository Structure
-```text
-.
-├── bert.py                  # BERT 기반 통화정책 방향성 예측 및 확률 추출 모듈 (v6)
-├── chronos-bolt.py          # Chronos-Bolt 기반 시계열 예측 및 신뢰도 지수 산출 모듈
-├── bok_labels.csv           # 한국은행 기준금리 결정 이력 데이터셋 (2016~)
-├── credibility_dashboard.jpg # 통화정책 신뢰도 분석 종합 시각화 대시보드
-└── README.md                # 프로젝트 명세서
+* **종합 대시보드 파일:** `credibility_dashboard.jpg`
+*(저장소 내에 포함된 대시보드 이미지를 통해 실제 금리 차트와 신뢰도 트렌드 그래프의 매칭 결과를 직관적으로 확인할 수 있습니다.)*
+
+## 🔍 결과 해석
+* **선행 지표 검증:** NLP 모듈이 산출한 `bert_signal`은 실제 한국은행의 기준금리 조정 결정을 정량적으로 앞서 반영하는 유의미한 선행 지표 역할을 수행함을 보여줍니다.
+* **정책 신뢰도 분석:** 도출된 통화정책 신뢰도 지수는 실제 시장의 기대(예측)와 한국은행의 실제 결정이 일치할 때 높게 유지되며, 시장의 예상 외 동결이나 갑작스러운 금리 변동이 발생한 주요 정책 이벤트 시점에는 지수가 급락하는 경향을 정확하게 잡아냅니다.
+* **리스크 플래그 기능:** 신뢰도 지수가 특정 임계값(40 미만)으로 떨어지면서 동시에 높은 정책 서프라이즈 수치가 지속되는 구간에는 터미널 및 대시보드 상에 `◀ 주목` 플래그를 표시하여, 거시경제적 변동성이 심화된 리스크 시점을 명확하게 식별합니다.
