@@ -19,7 +19,7 @@
 3. **신뢰도 지수화:** 시계열 모델의 예측값과 실제 정책 결정 간의 괴리율인 '정책 서프라이즈(Policy Surprise)'를 정량적으로 계산하여 최종적인 통화정책 신뢰도 지수(Composite Index) 및 신뢰도 등급(Credibility Grade)을 도출합니다.
 
 ## 📊 결과 이미지
-![통화정책 신뢰도 분석 대시보드](outputs/credibility_dashboard.jpg)
+![통화정책 신뢰도 분석 대시보드](outputs/credibility_dashboard.png)
 
 ## 🔍 결과 해석
 * **선행 지표 검증:** NLP 모듈이 산출한 `bert_signal`은 실제 한국은행의 기준금리 조정 결정을 정량적으로 앞서 반영하는 유의미한 선행 지표 역할을 수행함을 보여줍니다.
